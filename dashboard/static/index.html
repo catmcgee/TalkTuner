@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TalkTuner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="chat-side">
+  <header class="chat-header">
+    <h1>TalkTuner</h1>
+    <span class="tagline">talk to the model — and watch what it decides about you</span>
+    <button id="new-chat" type="button">New chat</button>
+  </header>
+  <div id="messages" class="messages">
+    <div class="chat-empty">
+      <p>Say anything. From your very first message, the model starts forming
+      a picture of who you are — age, gender, education, income. The panel on
+      the right shows that picture as it forms.</p>
+    </div>
+  </div>
+  <form id="composer" class="composer">
+    <textarea id="input" rows="1" placeholder="Message the model…" autofocus></textarea>
+    <button id="send" type="submit">Send</button>
+  </form>
+</main>
+
+<aside class="mirror-side">
+  <header class="mirror-header">
+    <span class="mirror-eyebrow">behind the glass</span>
+    <h2>The model&rsquo;s read on you</h2>
+    <p id="mirror-status" class="mirror-status">No reading yet — send a message.</p>
+  </header>
+  <div id="cards" class="cards"></div>
+  <footer class="mirror-footer">
+    <label class="alpha-label" for="alpha">
+      steering strength <span id="alpha-value" class="mono">8</span>
+    </label>
+    <input type="range" id="alpha" min="0" max="20" step="1" value="8">
+    <p class="mirror-note">Pin a belief with <span class="pin-glyph">⏚</span> to
+    override what the model thinks — its answers will change to match.</p>
+    <p id="model-name" class="mirror-model mono"></p>
+  </footer>
+</aside>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

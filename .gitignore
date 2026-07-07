@@ -1,3 +1,8 @@
+# Local artifacts of this repo: extracted copies of the bundled zips
+data/dataset/*/
+data/probe_checkpoints/reading_probe/
+data/probe_checkpoints/controlling_probe/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

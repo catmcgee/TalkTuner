@@ -3,6 +3,13 @@ This is the repository for the paper ["Designing a Dashboard for Transparency an
 
 Please see our project page for a video demo and other details: [https://yc015.github.io/TalkTuner-a-dashboard-ui-for-chatbot-llm/](https://yc015.github.io/TalkTuner-a-dashboard-ui-for-chatbot-llm/)
 
+# Interactive dashboard (community frontend)
+The paper's chat UI was not released with this repo, so [`dashboard/`](dashboard/)
+contains a self-contained rebuild: chat with a local model and watch — and pin —
+its internal beliefs about you (age, gender, education, socioeconomic status),
+using probes trained with this repo's method and bundled data. See
+[dashboard/README.md](dashboard/README.md) for a quickstart.
+
 # To run the code
 You can create the python environment using the following code:  
 `conda env create -f environment.yml`

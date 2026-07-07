@@ -1,0 +1,336 @@
+:root {
+  --paper: #f4f3ef;
+  --paper-deep: #e9e7e0;
+  --ink-chat: #26241f;
+  --glass: #141820;
+  --glass-raised: #1c2230;
+  --glass-line: #2a3245;
+  --phosphor: #8fd0c6;
+  --phosphor-dim: #43605c;
+  --pin-amber: #e8a33d;
+  --text-glass: #d8dde8;
+  --text-glass-dim: #8891a3;
+  --user-bubble: #26241f;
+  --radius: 10px;
+  font-size: 16px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  display: grid;
+  grid-template-columns: 1fr minmax(340px, 420px);
+  height: 100vh;
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink-chat);
+}
+
+.mono { font-family: "IBM Plex Mono", monospace; }
+
+/* ---------- chat side (your side of the glass) ---------- */
+
+.chat-side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--paper-deep);
+}
+
+.chat-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  padding: 1.1rem 1.6rem 1rem;
+  border-bottom: 1px solid var(--paper-deep);
+}
+
+.chat-header h1 {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  font-size: 0.8rem;
+  color: #7a766c;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#new-chat {
+  font: 500 0.8rem "Inter", sans-serif;
+  color: #7a766c;
+  background: none;
+  border: 1px solid #d4d1c8;
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+}
+#new-chat:hover { color: var(--ink-chat); border-color: #a9a598; }
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.chat-empty {
+  margin: auto;
+  max-width: 34rem;
+  text-align: center;
+  color: #8d897d;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.msg {
+  max-width: 76%;
+  padding: 0.65rem 0.95rem;
+  border-radius: var(--radius);
+  line-height: 1.55;
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: var(--user-bubble);
+  color: var(--paper);
+  border-bottom-right-radius: 3px;
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid var(--paper-deep);
+  border-bottom-left-radius: 3px;
+}
+
+.msg.assistant.thinking::after {
+  content: "▋";
+  animation: blink 1s steps(1) infinite;
+  color: #b0ac9f;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.composer {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.9rem 1.6rem 1.1rem;
+  border-top: 1px solid var(--paper-deep);
+}
+
+#input {
+  flex: 1;
+  resize: none;
+  font: 0.95rem/1.5 "Inter", sans-serif;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #d4d1c8;
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink-chat);
+  max-height: 9rem;
+}
+#input:focus { outline: 2px solid var(--ink-chat); outline-offset: -1px; }
+
+#send {
+  font: 600 0.9rem "Inter", sans-serif;
+  background: var(--ink-chat);
+  color: var(--paper);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0 1.2rem;
+  cursor: pointer;
+}
+#send:disabled { opacity: 0.45; cursor: default; }
+
+/* ---------- mirror side (behind the glass) ---------- */
+
+.mirror-side {
+  background: var(--glass);
+  color: var(--text-glass);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.mirror-header { padding: 1.15rem 1.4rem 0.9rem; }
+
+.mirror-eyebrow {
+  font: 500 0.68rem "IBM Plex Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--phosphor-dim);
+}
+
+.mirror-header h2 {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 500;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  margin-top: 0.25rem;
+}
+
+.mirror-status {
+  font: 400 0.75rem "IBM Plex Mono", monospace;
+  color: var(--text-glass-dim);
+  margin-top: 0.4rem;
+  min-height: 1.1em;
+}
+.mirror-status.live { color: var(--phosphor); }
+
+.cards {
+  flex: 1;
+  padding: 0.4rem 1.4rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.card {
+  background: var(--glass-raised);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius);
+  padding: 0.8rem 0.95rem 0.95rem;
+  transition: border-color 0.5s;
+}
+.card.flipped { border-color: var(--phosphor); }
+.card.pinned { border-color: var(--pin-amber); }
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.65rem;
+}
+
+.card-title {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.card-meta {
+  font: 400 0.62rem "IBM Plex Mono", monospace;
+  color: var(--text-glass-dim);
+}
+
+.belief {
+  display: grid;
+  grid-template-columns: 7.2rem 1fr 3.1rem 1.5rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.17rem 0;
+}
+
+.belief-label {
+  font-size: 0.78rem;
+  color: var(--text-glass-dim);
+  white-space: nowrap;
+}
+.belief.top .belief-label { color: var(--text-glass); }
+
+.meter {
+  height: 7px;
+  border-radius: 4px;
+  background: #10141c;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: var(--phosphor-dim);
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.4s;
+}
+.belief.top .meter-fill { background: var(--phosphor); }
+.belief.pinned .meter-fill { background: var(--pin-amber); }
+
+.belief-pct {
+  font: 500 0.72rem "IBM Plex Mono", monospace;
+  color: var(--text-glass-dim);
+  text-align: right;
+}
+.belief.top .belief-pct { color: var(--text-glass); }
+
+.pin-btn {
+  font-size: 0.85rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  color: transparent;
+  cursor: pointer;
+  padding: 0.1rem;
+}
+.belief:hover .pin-btn { color: var(--text-glass-dim); }
+.pin-btn:hover { color: var(--pin-amber) !important; }
+.belief.pinned .pin-btn { color: var(--pin-amber); }
+
+.pinned-tag {
+  font: 500 0.6rem "IBM Plex Mono", monospace;
+  color: var(--pin-amber);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.mirror-footer {
+  padding: 0.9rem 1.4rem 1.2rem;
+  border-top: 1px solid var(--glass-line);
+}
+
+.alpha-label {
+  display: flex;
+  justify-content: space-between;
+  font: 500 0.68rem "IBM Plex Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-glass-dim);
+  margin-bottom: 0.35rem;
+}
+.alpha-label .mono { color: var(--phosphor); }
+
+#alpha {
+  width: 100%;
+  accent-color: var(--phosphor);
+}
+
+.mirror-note {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-glass-dim);
+  margin-top: 0.7rem;
+}
+.pin-glyph { color: var(--pin-amber); }
+
+.mirror-model {
+  font-size: 0.62rem;
+  color: #565e70;
+  margin-top: 0.6rem;
+}
+
+/* ---------- small screens ---------- */
+
+@media (max-width: 860px) {
+  body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
+    height: 100vh;
+  }
+  .chat-side { border-right: none; border-bottom: 1px solid var(--paper-deep); }
+  .msg { max-width: 88%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill { transition: none; }
+  .msg.assistant.thinking::after { animation: none; }
+}
