@@ -1,0 +1,9 @@
+{
+  "buildCommand": "",
+  "outputDirectory": "dashboard/static",
+  "framework": null,
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://catmcgee-talktuner.hf.space/api/:path*" },
+    { "source": "/static/:path*", "destination": "/:path*" }
+  ]
+}
