@@ -169,6 +169,12 @@ async function send() {
   bubble.classList.add("thinking");
   setStatus("reading…", true);
 
+  // On a sleeping HF Space the first request can stall while the GPU wakes
+  // and the model reloads — reassure instead of looking frozen.
+  const wakeTimer = setTimeout(() => {
+    setStatus("waking the model up — the first response can take a minute or two…", true);
+  }, 10000);
+
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -188,6 +194,7 @@ async function send() {
       buf = events.pop();
       for (const ev of events) {
         if (!ev.startsWith("data: ")) continue;
+        clearTimeout(wakeTimer);
         const msg = JSON.parse(ev.slice(6));
         if (msg.type === "token") {
           reply += msg.text;
@@ -210,10 +217,11 @@ async function send() {
     setStatus(anyPin ? "steering active — next replies are intervened" : "", anyPin);
   } catch (err) {
     bubble.textContent = `Something went wrong: ${err.message}. ` +
-      "Check that the server is still running, then try again.";
+      "The server may still be waking up — wait a moment and resend.";
     setStatus("");
     messages.pop();  // let the user resend their message
   } finally {
+    clearTimeout(wakeTimer);
     bubble.classList.remove("thinking");
     busy = false;
     sendBtn.disabled = false;
