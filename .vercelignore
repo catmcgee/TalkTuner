@@ -1,0 +1,9 @@
+.venv
+.git
+data
+notebooks
+doc
+deploy
+src
+*.log
+*.zip
