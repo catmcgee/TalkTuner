@@ -196,6 +196,16 @@ body {
   gap: 0.9rem;
 }
 
+.cards-divider {
+  font: 500 0.62rem "IBM Plex Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-glass-dim);
+  border-top: 1px solid var(--glass-line);
+  padding-top: 0.9rem;
+  margin-top: 0.2rem;
+}
+
 .card {
   background: var(--glass-raised);
   border: 1px solid var(--glass-line);

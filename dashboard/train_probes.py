@@ -19,8 +19,9 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 
-from common import (ATTRIBUTES, DEFAULT_MODEL, REPO_ROOT, ProbeSet,
-                    iter_conversations, last_token_hidden_states, pick_device)
+from common import (ATTRIBUTES, DEFAULT_MODEL, READING_SUFFIX, REPO_ROOT,
+                    ProbeSet, iter_conversations, pick_device,
+                    reading_hidden_states)
 
 
 def sample_conversations(attribute, per_class, seed=0):
@@ -59,13 +60,15 @@ def main():
         REPO_ROOT / "data" / "probe_checkpoints" / args.model.split("/")[-1].lower())
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    meta = {"model": args.model, "attributes": {}, "per_class": args.per_class}
+    meta = {"model": args.model, "attributes": {}, "per_class": args.per_class,
+            "reading": {"suffix": READING_SUFFIX, "strip_last_assistant": True}}
     for attr, classes in ATTRIBUTES.items():
         data = sample_conversations(attr, args.per_class)
         print(f"\n[{attr}] {len(data)} conversations ({len(classes)} classes)")
         feats, labels = [], []
         for messages, label in tqdm(data, desc=f"extract {attr}"):
-            feats.append(last_token_hidden_states(model, tokenizer, messages, device))
+            feats.append(reading_hidden_states(
+                model, tokenizer, messages, READING_SUFFIX[attr], device))
             labels.append(label)
         X = np.stack(feats)  # [N, n_layers+1, dim]
         y = np.array(labels)

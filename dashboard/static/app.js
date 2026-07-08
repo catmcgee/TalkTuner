@@ -6,6 +6,10 @@ const ATTR_LABELS = {
   gender: "Gender",
   education: "Education",
   socioeco: "Socioeconomic status",
+  mood: "Mood",
+  "tech expertise": "Tech expertise",
+  "english fluency": "English fluency",
+  personality: "Personality",
 };
 
 const CLASS_LABELS = {
@@ -39,6 +43,15 @@ async function init() {
     pins[attr] = null;
     cardsEl.appendChild(buildCard(attr, info));
   }
+  const selfReport = Object.entries(config.self_report || {});
+  if (selfReport.length) {
+    const divider = document.createElement("div");
+    divider.className = "cards-divider";
+    cardsEl.appendChild(divider);
+    for (const [attr, classes] of selfReport) {
+      cardsEl.appendChild(buildCard(attr, { classes }, true));
+    }
+  }
   $("alpha").addEventListener("input", (e) => {
     $("alpha-value").textContent = e.target.value;
   });
@@ -49,29 +62,39 @@ async function init() {
   $("new-chat").addEventListener("click", resetChat);
 }
 
-function buildCard(attr, info) {
+function classLabel(cls) {
+  return CLASS_LABELS[cls] || cls.charAt(0).toUpperCase() + cls.slice(1);
+}
+
+function buildCard(attr, info, readonly = false) {
   const card = document.createElement("div");
   card.className = "card";
   card.id = `card-${attr}`;
-  const acc = Math.round(info.val_acc * 100);
+  const meta = readonly
+    ? "asked"
+    : `probe ${Math.round(info.val_acc * 100)}% · layer ${info.layer}`;
   card.innerHTML = `
     <div class="card-head">
       <span class="card-title">${ATTR_LABELS[attr] || attr}</span>
-      <span class="card-meta">probe ${acc}% · layer ${info.layer}</span>
+      <span class="card-meta">${meta}</span>
     </div>`;
   for (const cls of info.classes) {
     const row = document.createElement("div");
     row.className = "belief";
     row.dataset.attr = attr;
     row.dataset.cls = cls;
+    const pin = readonly ? "<span></span>" : `
+      <button class="pin-btn" type="button"
+        aria-label="Pin ${ATTR_LABELS[attr]} as ${classLabel(cls)}"
+        title="Make the model believe this">☆</button>`;
     row.innerHTML = `
-      <span class="belief-label">${CLASS_LABELS[cls] || cls}</span>
+      <span class="belief-label">${classLabel(cls)}</span>
       <div class="meter"><div class="meter-fill"></div></div>
       <span class="belief-pct">–</span>
-      <button class="pin-btn" type="button"
-        aria-label="Pin ${ATTR_LABELS[attr]} as ${CLASS_LABELS[cls] || cls}"
-        title="Make the model believe this">⏚</button>`;
-    row.querySelector(".pin-btn").addEventListener("click", () => togglePin(attr, cls));
+      ${pin}`;
+    if (!readonly) {
+      row.querySelector(".pin-btn").addEventListener("click", () => togglePin(attr, cls));
+    }
     card.appendChild(row);
   }
   return card;
@@ -82,7 +105,9 @@ function togglePin(attr, cls) {
   const card = $(`card-${attr}`);
   card.classList.toggle("pinned", !!pins[attr]);
   card.querySelectorAll(".belief").forEach((row) => {
-    row.classList.toggle("pinned", row.dataset.cls === pins[attr]);
+    const isPinned = row.dataset.cls === pins[attr];
+    row.classList.toggle("pinned", isPinned);
+    row.querySelector(".pin-btn").textContent = isPinned ? "★" : "☆";
   });
   const meta = card.querySelector(".card-meta");
   if (pins[attr]) {

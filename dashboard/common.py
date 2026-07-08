@@ -29,6 +29,41 @@ ATTRIBUTES = {
     "socioeco": ["low", "middle", "high"],
 }
 
+# Elicitation suffixes for probe reading, from the paper's training pipeline
+# (dataset.py appends this after the last user message; the probe reads the
+# suffix's final token). Reading on the bare conversation instead makes the
+# probe over-weight writing style: "lol im 28 btw" reads as adolescent. The
+# suffix makes the model aggregate its evidence — including stated facts.
+READING_SUFFIX = {
+    "age": " I think the age of this user is",
+    "gender": " I think the gender of this user is",
+    "socioeco": " I think the socioeconomic status of this user is",
+    "education": " I think the education level of this user is",
+}
+
+# Attributes read by asking the model directly (next-token probabilities over
+# the candidate words after an elicitation suffix) rather than with trained
+# probes. Read-only in the UI: no probe weights means nothing to steer with.
+# Candidate words must differ in their first token.
+SELF_REPORT = {
+    "mood": {
+        "suffix": " I think the current mood of this user is",
+        "classes": ["happy", "neutral", "stressed", "sad"],
+    },
+    "tech expertise": {
+        "suffix": " I think the technical expertise of this user is",
+        "classes": ["beginner", "intermediate", "advanced"],
+    },
+    "english fluency": {
+        "suffix": " I think this user's English is",
+        "classes": ["native", "fluent", "basic"],
+    },
+    "personality": {
+        "suffix": " I think this user is more",
+        "classes": ["introverted", "extroverted"],
+    },
+}
+
 # Folder-name prefix on disk -> attribute key above.
 FOLDER_ATTR = {
     "age": "age",
@@ -109,16 +144,48 @@ def format_chat(tokenizer, messages):
     )
 
 
+def reading_text(tokenizer, messages, suffix):
+    """Conversation formatted for an elicitation reading: trailing assistant
+    reply stripped (the paper's remove_last_ai_response), generation prompt
+    added, suffix started as the assistant's answer."""
+    msgs = list(messages)
+    if msgs and msgs[-1]["role"] == "assistant":
+        msgs = msgs[:-1]
+    text = tokenizer.apply_chat_template(
+        [{"role": "system", "content": SYSTEM_PROMPT}] + msgs,
+        tokenize=False, add_generation_prompt=True)
+    return text + suffix
+
+
 @torch.no_grad()
-def last_token_hidden_states(model, tokenizer, messages, device, max_tokens=2048):
-    """Run one forward pass over the formatted conversation and return the
-    hidden state of the final token at every layer: array [n_layers+1, dim]."""
-    text = format_chat(tokenizer, messages)
+def reading_hidden_states(model, tokenizer, messages, suffix, device,
+                          max_tokens=2048):
+    """Hidden states of the elicitation suffix's last token at every layer:
+    array [n_layers+1, dim]."""
+    text = reading_text(tokenizer, messages, suffix)
     ids = tokenizer(text, return_tensors="pt", truncation=True,
-                    max_length=max_tokens).input_ids.to(device)
+                    max_length=max_tokens, add_special_tokens=False
+                    ).input_ids.to(device)
     out = model(ids, output_hidden_states=True)
-    states = [h[0, -1].float().cpu().numpy() for h in out.hidden_states]
-    return np.stack(states)
+    return np.stack([h[0, -1].float().cpu().numpy() for h in out.hidden_states])
+
+
+@torch.no_grad()
+def self_report_readings(model, tokenizer, messages, device, max_tokens=2048):
+    """{attr: {class: prob}} by asking the model to complete an elicitation
+    suffix and comparing next-token probabilities of the candidate words."""
+    readings = {}
+    for attr, spec in SELF_REPORT.items():
+        text = reading_text(tokenizer, messages, spec["suffix"])
+        ids = tokenizer(text, return_tensors="pt", truncation=True,
+                        max_length=max_tokens, add_special_tokens=False
+                        ).input_ids.to(device)
+        logits = model(ids).logits[0, -1].float()
+        cand = [tokenizer(f" {c}", add_special_tokens=False).input_ids[0]
+                for c in spec["classes"]]
+        probs = torch.softmax(logits[cand], dim=0).cpu().numpy()
+        readings[attr] = {c: float(p) for c, p in zip(spec["classes"], probs)}
+    return readings
 
 
 class ProbeSet:

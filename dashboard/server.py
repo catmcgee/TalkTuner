@@ -18,8 +18,9 @@ import numpy as np
 import torch
 from flask import Flask, Response, jsonify, request, send_from_directory
 
-from common import (DEFAULT_MODEL, REPO_ROOT, SYSTEM_PROMPT, ProbeSet,
-                    last_token_hidden_states, pick_device)
+from common import (DEFAULT_MODEL, REPO_ROOT, SELF_REPORT, SYSTEM_PROMPT,
+                    ProbeSet, pick_device, reading_hidden_states,
+                    self_report_readings)
 
 app = Flask(__name__, static_folder=None)
 STATIC_DIR = Path(__file__).parent / "static"
@@ -85,14 +86,14 @@ def steering_hooks(pins, alpha):
 
 
 def read_user_model(messages):
-    """Probe readings for the conversation. Paper mode replicates the probes'
-    training text per attribute (llama_v2 format, last assistant reply
-    stripped, elicitation suffix), so it runs one pass per attribute."""
+    """Probe readings for the conversation: one pass per attribute over the
+    probes' training text (conversation with trailing assistant reply
+    stripped + that attribute's elicitation suffix)."""
     model, tokenizer, device, probes = (state["model"], state["tokenizer"],
                                         state["device"], state["probes"])
-    if probes.mode == "paper":
-        readings = {}
-        for attr in probes.probes:
+    readings = {}
+    for attr in probes.probes:
+        if probes.mode == "paper":
             text = probes.paper_reading_text(messages, attr)
             ids = tokenizer(text, return_tensors="pt", truncation=True,
                             max_length=2048).input_ids.to(device)
@@ -100,10 +101,12 @@ def read_user_model(messages):
                 out = model(ids, output_hidden_states=True)
             hs = np.stack([h[0, -1].float().cpu().numpy()
                            for h in out.hidden_states])
-            readings[attr] = probes.read_attr(attr, hs)
-        return readings
-    hs = last_token_hidden_states(model, tokenizer, messages, device)
-    return probes.read(hs)
+        else:
+            hs = reading_hidden_states(
+                model, tokenizer, messages,
+                probes.meta["reading"]["suffix"][attr], device)
+        readings[attr] = probes.read_attr(attr, hs)
+    return readings
 
 
 @app.route("/")
@@ -127,6 +130,12 @@ def config():
         "attributes": {attr: {"classes": p["classes"], "layer": p["layer"],
                               "val_acc": p["val_acc"]}
                        for attr, p in probes.probes.items()},
+        # Attributes read by asking the model directly (read-only, no
+        # steering). Skipped in paper mode: 4 extra 13B passes per turn is
+        # too slow to be worth it.
+        "self_report": ({attr: spec["classes"]
+                         for attr, spec in SELF_REPORT.items()}
+                        if probes.mode != "paper" else {}),
     })
 
 
@@ -166,6 +175,10 @@ def chat():
             try:
                 # Reading 1: what the model believes right after your message.
                 before = read_user_model(messages)
+                if state["probes"].mode != "paper":
+                    before.update(self_report_readings(
+                        state["model"], state["tokenizer"], messages,
+                        state["device"]))
                 yield sse({"type": "readings", "when": "before",
                            "readings": before})
 
@@ -183,15 +196,11 @@ def chat():
                     yield sse({"type": "token", "text": token})
                 thread.join()
 
-                # Reading 2: beliefs after the model's own reply. The paper's
-                # probes always read at the last user message (the reply is
-                # stripped), so there the reading is unchanged — reuse it.
-                if state["probes"].mode == "paper":
-                    after = before
-                else:
-                    full = messages + [{"role": "assistant", "content": reply}]
-                    after = read_user_model(full)
-                yield sse({"type": "done", "reply": reply, "readings": after})
+                # Readings always elicit at the last user message (trailing
+                # assistant replies are stripped, as in the paper), so the
+                # post-reply reading equals the pre-reply one — reuse it.
+                yield sse({"type": "done", "reply": reply,
+                           "readings": before})
             finally:
                 for h in handles:
                     h.remove()
