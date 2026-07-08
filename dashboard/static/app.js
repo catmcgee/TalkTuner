@@ -200,6 +200,8 @@ async function send() {
           reply = msg.reply;
           bubble.textContent = reply;
           applyReadings(msg.readings);
+        } else if (msg.type === "error") {
+          throw new Error(msg.message);
         }
       }
     }

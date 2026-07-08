@@ -65,39 +65,55 @@ def main():
     for attr, classes in ATTRIBUTES.items():
         data = sample_conversations(attr, args.per_class)
         print(f"\n[{attr}] {len(data)} conversations ({len(classes)} classes)")
-        feats, labels = [], []
+        feats, bare_feats, labels = [], [], []
         for messages, label in tqdm(data, desc=f"extract {attr}"):
-            feats.append(reading_hidden_states(
-                model, tokenizer, messages, READING_SUFFIX[attr], device))
+            suffix_states, bare_states = reading_hidden_states(
+                model, tokenizer, messages, READING_SUFFIX[attr], device,
+                with_bare=True)
+            feats.append(suffix_states)
+            bare_feats.append(bare_states)
             labels.append(label)
-        X = np.stack(feats)  # [N, n_layers+1, dim]
         y = np.array(labels)
-
-        best = None
         idx_train, idx_val = train_test_split(
             np.arange(len(y)), test_size=0.2, random_state=0, stratify=y)
-        for layer in range(X.shape[1]):
-            clf = LogisticRegression(max_iter=2000, C=0.1)
-            clf.fit(X[idx_train, layer], y[idx_train])
-            acc = clf.score(X[idx_val, layer], y[idx_val])
-            if best is None or acc > best[1]:
-                best = (layer, acc, clf)
-        layer, acc, clf = best
-        print(f"[{attr}] best layer {layer}: val acc {acc:.3f}")
 
-        # Order coef rows to match ATTRIBUTES order for multiclass; sklearn
-        # binary probes keep their single row (positive class = classes_[1]).
-        if len(clf.classes_) > 2:
-            order = [list(clf.classes_).index(c) for c in classes]
-            coef, intercept = clf.coef_[order], clf.intercept_[order]
-            class_names = classes
-        else:
-            coef, intercept = clf.coef_, clf.intercept_
-            class_names = list(clf.classes_)
+        # Reading probes on the elicitation suffix (aggregates evidence like
+        # stated facts); controlling probes on the bare conversation (their
+        # directions steer generation, as in the paper).
+        results = {}
+        for kind, X in [("reading", np.stack(feats)),
+                        ("controlling", np.stack(bare_feats))]:
+            best = None
+            for layer in range(X.shape[1]):
+                clf = LogisticRegression(max_iter=2000, C=0.1)
+                clf.fit(X[idx_train, layer], y[idx_train])
+                acc = clf.score(X[idx_val, layer], y[idx_val])
+                if best is None or acc > best[1]:
+                    best = (layer, acc, clf)
+            layer, acc, clf = best
+            # Order coef rows to match ATTRIBUTES order for multiclass;
+            # sklearn binary probes keep their single row (positive class =
+            # classes_[1]).
+            if len(clf.classes_) > 2:
+                order = [list(clf.classes_).index(c) for c in classes]
+                coef, intercept = clf.coef_[order], clf.intercept_[order]
+                class_names = classes
+            else:
+                coef, intercept = clf.coef_, clf.intercept_
+                class_names = list(clf.classes_)
+            results[kind] = (layer, acc, coef, intercept, class_names)
+            print(f"[{attr}] best {kind} layer {layer}: val acc {acc:.3f}")
 
+        layer, acc, coef, intercept, class_names = results["reading"]
         np.savez(out_dir / f"{attr}.npz", layer=layer, val_acc=acc,
                  classes=np.array(class_names), coef=coef, intercept=intercept)
-        meta["attributes"][attr] = {"layer": layer, "val_acc": round(acc, 4)}
+        c_layer, c_acc, c_coef, _, _ = results["controlling"]
+        norms = np.linalg.norm(np.stack(bare_feats), axis=2).mean(axis=0)
+        np.savez(out_dir / f"{attr}_steering.npz", layer=c_layer,
+                 val_acc=c_acc, coef=c_coef, norms=norms)
+        meta["attributes"][attr] = {
+            "layer": layer, "val_acc": round(acc, 4),
+            "steering_layer": c_layer, "steering_acc": round(c_acc, 4)}
 
     with open(out_dir / "meta.json", "w") as f:
         json.dump(meta, f, indent=2)

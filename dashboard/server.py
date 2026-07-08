@@ -25,6 +25,12 @@ from common import (DEFAULT_MODEL, REPO_ROOT, SELF_REPORT, SYSTEM_PROMPT,
 app = Flask(__name__, static_folder=None)
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Guardrails for public deployments (e.g. a HF Space): bound the work one
+# request can demand and fail politely when the single GPU is busy.
+MAX_TURNS = 40
+MAX_MSG_CHARS = 4000
+BUSY_TIMEOUT_S = 90
+
 state = {}
 gen_lock = threading.Lock()
 
@@ -49,9 +55,13 @@ def steering_hooks(pins, alpha):
     the pinned classes (the paper edits only the last position; during cached
     generation every new token is the last position, so it is steered too).
 
-    Generic mode: normalized probe direction * alpha at the 4 decoder layers
-    below the probe layer. Paper mode: the controlling probes' weight rows *
-    alpha at decoder layers 19-28, as in the causality notebooks (N=7)."""
+    Generic mode: the controlling probe's unit direction scaled by alpha% of
+    the training-time activation norm at each edited layer, applied at the 4
+    decoder layers below the controlling probe's layer — norm calibration
+    makes one alpha work across models with very different activation
+    magnitudes (Qwen's norms dwarf Llama's). Paper mode: the controlling
+    probes' raw weight rows * alpha at decoder layers 19-28, exactly as in
+    the causality notebooks (N=7)."""
     model, probes, device = state["model"], state["probes"], state["device"]
     layers = model.model.layers
     per_layer = {}
@@ -63,11 +73,14 @@ def steering_hooks(pins, alpha):
                 per_layer.setdefault(i, []).append(
                     torch.tensor(row * alpha, dtype=torch.float16, device=device))
         else:
-            direction, probe_layer = probes.steering_direction(attr, target)
-            vec = torch.tensor(direction * alpha, dtype=torch.float16, device=device)
+            direction, probe_layer, norms = probes.steering_direction(attr, target)
             top = min(probe_layer - 1, len(layers) - 1)
             for i in range(max(0, top - 3), top + 1):
-                per_layer.setdefault(i, []).append(vec)
+                scale = (alpha / 100.0) * (norms[i + 1] if norms is not None
+                                           else 100.0)
+                per_layer.setdefault(i, []).append(
+                    torch.tensor(direction * scale, dtype=torch.float16,
+                                 device=device))
 
     handles = []
     for i, vecs in per_layer.items():
@@ -166,11 +179,19 @@ def chat():
     messages = body["messages"]
     pins = body.get("pins") or {}
     alpha = float(body.get("alpha", 8.0))
+    if len(messages) > MAX_TURNS or any(
+            len(m.get("content", "")) > MAX_MSG_CHARS for m in messages):
+        return jsonify({"error": "conversation too long"}), 400
 
     def stream():
         from transformers import TextIteratorStreamer
 
-        with gen_lock:
+        if not gen_lock.acquire(timeout=BUSY_TIMEOUT_S):
+            yield sse({"type": "error",
+                       "message": "The model is busy with another chat — "
+                                  "try again in a minute."})
+            return
+        try:
             handles = steering_hooks(pins, alpha)
             try:
                 # Reading 1: what the model believes right after your message.
@@ -204,6 +225,8 @@ def chat():
             finally:
                 for h in handles:
                     h.remove()
+        finally:
+            gen_lock.release()
 
     return Response(stream(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache",
@@ -219,6 +242,8 @@ if __name__ == "__main__":
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--probes", default=None)
     ap.add_argument("--port", type=int, default=5170)
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="use 0.0.0.0 when serving from a container")
     args = ap.parse_args()
     load(args.model, args.probes)
-    app.run(host="127.0.0.1", port=args.port, threaded=True)
+    app.run(host=args.host, port=args.port, threaded=True)

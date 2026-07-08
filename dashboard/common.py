@@ -159,15 +159,29 @@ def reading_text(tokenizer, messages, suffix):
 
 @torch.no_grad()
 def reading_hidden_states(model, tokenizer, messages, suffix, device,
-                          max_tokens=2048):
+                          max_tokens=2048, with_bare=False):
     """Hidden states of the elicitation suffix's last token at every layer:
-    array [n_layers+1, dim]."""
+    array [n_layers+1, dim].
+
+    with_bare=True additionally returns the states at the bare conversation's
+    last token (the position just before the suffix) — the paper's
+    controlling probes are trained there. Since the bare text is a prefix of
+    the suffixed text and attention is causal, both come from one forward
+    pass."""
     text = reading_text(tokenizer, messages, suffix)
     ids = tokenizer(text, return_tensors="pt", truncation=True,
                     max_length=max_tokens, add_special_tokens=False
                     ).input_ids.to(device)
     out = model(ids, output_hidden_states=True)
-    return np.stack([h[0, -1].float().cpu().numpy() for h in out.hidden_states])
+    suffix_states = np.stack([h[0, -1].float().cpu().numpy()
+                              for h in out.hidden_states])
+    if not with_bare:
+        return suffix_states
+    n_suffix = len(tokenizer(suffix, add_special_tokens=False).input_ids)
+    bare_pos = ids.shape[1] - n_suffix - 1
+    bare_states = np.stack([h[0, bare_pos].float().cpu().numpy()
+                            for h in out.hidden_states])
+    return suffix_states, bare_states
 
 
 @torch.no_grad()
@@ -218,15 +232,23 @@ class ProbeSet:
             }
             steer = self.probe_dir / f"{attr}_steering.npz"
             if steer.exists():
-                self.probes[attr]["steering_rows"] = np.load(steer)["rows"]
+                data = np.load(steer)
+                if "rows" in data:  # paper mode: controlling probes 19-28
+                    self.probes[attr]["steering_rows"] = data["rows"]
+                else:  # generic mode: one controlling probe + norm calibration
+                    self.probes[attr].update(
+                        steering_coef=data["coef"],
+                        steering_layer=int(data["layer"]),
+                        steering_norms=data["norms"])
 
     def default_alpha(self):
-        # Paper mode uses the notebooks' N=7; the generic normalized-direction
-        # steering saturates a small model much sooner (tuned on the 3B).
-        return self.meta.get("steering", {}).get("n", 3)
+        # Paper mode uses the notebooks' N=7 (an absolute shift). Generic
+        # mode's alpha is a percentage of the hidden state's norm, which
+        # transfers across models with different activation magnitudes.
+        return self.meta.get("steering", {}).get("n", 8)
 
     def max_alpha(self):
-        return self.meta.get("steering", {}).get("n", 3) * 2 + 2
+        return self.meta.get("steering", {}).get("n", 8) * 2
 
     def read_attr(self, attr, hidden_states):
         p = self.probes[attr]
@@ -264,16 +286,22 @@ class ProbeSet:
         return text + self.meta["reading"]["suffix"][attr]
 
     def steering_direction(self, attr, target_class):
-        """Generic mode: unit vector toward target_class + the probe layer."""
+        """Generic mode: (unit vector toward target_class, probe layer,
+        per-layer activation norms for strength calibration). Prefers the
+        controlling probe (trained on the bare conversation, like the
+        paper's) over the reading probe."""
         p = self.probes[attr]
-        coef, classes = p["coef"], p["classes"]
+        coef = p.get("steering_coef", p["coef"])
+        layer = p.get("steering_layer", p["layer"])
+        norms = p.get("steering_norms")
+        classes = p["classes"]
         idx = classes.index(target_class)
         if len(coef) == 1:  # binary probe: coef points toward classes[1]
             w = coef[0] if idx == 1 else -coef[0]
         else:
             others = np.mean([coef[i] for i in range(len(coef)) if i != idx], axis=0)
             w = coef[idx] - others
-        return (w / np.linalg.norm(w)).astype(np.float32), p["layer"]
+        return (w / np.linalg.norm(w)).astype(np.float32), layer, norms
 
     def paper_steering_rows(self, attr, target_class):
         """Paper mode: {decoder_layer: weight row} for the steering window."""
