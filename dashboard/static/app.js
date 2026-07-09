@@ -32,7 +32,19 @@ const statusEl = $("mirror-status"), sendBtn = $("send");
 init();
 
 async function init() {
-  config = await (await fetch("/api/config")).json();
+  // Wire the UI before any network call: while the sleeping Space wakes,
+  // /api/config can hang for a minute — send must still work (and the form
+  // must not fall through to a native submit that reloads the page).
+  $("alpha").addEventListener("input", (e) => {
+    $("alpha-value").textContent = e.target.value;
+  });
+  $("composer").addEventListener("submit", (e) => { e.preventDefault(); send(); });
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  $("new-chat").addEventListener("click", resetChat);
+
+  config = await fetchConfig();
   $("model-name").textContent = config.mode === "paper"
     ? `${config.model} — the paper's original probes`
     : `${config.model} — probes trained on its activations`;
@@ -40,7 +52,7 @@ async function init() {
   $("alpha").value = config.default_alpha;
   $("alpha-value").textContent = config.default_alpha;
   for (const [attr, info] of Object.entries(config.attributes)) {
-    pins[attr] = null;
+    pins[attr] = pins[attr] ?? null;
     cardsEl.appendChild(buildCard(attr, info));
   }
   const selfReport = Object.entries(config.self_report || {});
@@ -52,14 +64,25 @@ async function init() {
       cardsEl.appendChild(buildCard(attr, { classes }, true));
     }
   }
-  $("alpha").addEventListener("input", (e) => {
-    $("alpha-value").textContent = e.target.value;
-  });
-  $("composer").addEventListener("submit", (e) => { e.preventDefault(); send(); });
-  inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-  });
-  $("new-chat").addEventListener("click", resetChat);
+  if (!busy) setStatus("No reading yet — send a message.");
+}
+
+async function fetchConfig() {
+  for (let attempt = 1; ; attempt++) {
+    const wakeTimer = setTimeout(() => {
+      if (!busy) setStatus("waking the model up — this can take a minute or two…", true);
+    }, 5000);
+    try {
+      const res = await fetch("/api/config");
+      if (!res.ok) throw new Error(`server returned ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      if (!busy) setStatus(`still waking the model up (attempt ${attempt})…`, true);
+      await new Promise((r) => setTimeout(r, 5000));
+    } finally {
+      clearTimeout(wakeTimer);
+    }
+  }
 }
 
 function classLabel(cls) {
@@ -124,6 +147,7 @@ function applyReadings(readings) {
   for (const [attr, probs] of Object.entries(readings)) {
     const top = Object.entries(probs).sort((a, b) => b[1] - a[1])[0][0];
     const card = $(`card-${attr}`);
+    if (!card) continue;  // readings can beat the config fetch that builds cards
     if (topClasses[attr] && topClasses[attr] !== top) {
       card.classList.remove("flipped");
       void card.offsetWidth;  // restart the border-flash transition
