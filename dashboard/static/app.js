@@ -70,14 +70,14 @@ async function init() {
 async function fetchConfig() {
   for (let attempt = 1; ; attempt++) {
     const wakeTimer = setTimeout(() => {
-      if (!busy) setStatus("waking the model up — this can take a minute or two…", true);
+      if (!busy) setStatus("waking up the Hugging Face Space that runs the model — this can take a minute or two…", true);
     }, 5000);
     try {
       const res = await fetch("/api/config");
       if (!res.ok) throw new Error(`server returned ${res.status}`);
       return await res.json();
     } catch (err) {
-      if (!busy) setStatus(`still waking the model up (attempt ${attempt})…`, true);
+      if (!busy) setStatus(`still waking up the Hugging Face Space (attempt ${attempt})…`, true);
       await new Promise((r) => setTimeout(r, 5000));
     } finally {
       clearTimeout(wakeTimer);
@@ -194,10 +194,14 @@ async function send() {
   setStatus("reading…", true);
 
   // On a sleeping HF Space the first request can stall while the GPU wakes
-  // and the model reloads — reassure instead of looking frozen.
+  // and the model reloads — say so in the reply bubble instead of looking
+  // frozen. No config yet means the Space is definitely still waking, so
+  // show the notice immediately; otherwise assume waking after 10s of silence.
   const wakeTimer = setTimeout(() => {
-    setStatus("waking the model up — the first response can take a minute or two…", true);
-  }, 10000);
+    bubble.textContent = "This message will take a while — the Hugging Face " +
+      "Space that runs the model is waking up. It can take a minute or two.";
+    setStatus("waking up the Hugging Face Space…", true);
+  }, config ? 10000 : 0);
 
   try {
     const res = await fetch("/api/chat", {
