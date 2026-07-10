@@ -53,8 +53,12 @@ def main():
     device = pick_device()
     print(f"Loading {args.model} on {device}...")
     tokenizer = AutoTokenizer.from_pretrained(args.model)
-    model = AutoModelForCausalLM.from_pretrained(args.model, dtype=torch.float16)
-    model.to(device).eval()
+    # device_map streams shards straight to the accelerator; loading to CPU
+    # first needs the full fp16 weights in system RAM (OOM on small hosts).
+    model = AutoModelForCausalLM.from_pretrained(
+        args.model, dtype=torch.float16,
+        device_map=device if device != "cpu" else None)
+    model.eval()
 
     out_dir = Path(args.out) if args.out else (
         REPO_ROOT / "data" / "probe_checkpoints" / args.model.split("/")[-1].lower())

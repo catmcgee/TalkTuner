@@ -40,8 +40,12 @@ def load(model_name, probe_dir=None):
 
     device = pick_device()
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name, dtype=torch.float16)
-    model.to(device).eval()
+    # device_map streams shards straight to the accelerator; loading to CPU
+    # first needs the full fp16 weights in system RAM (OOM on small hosts).
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, dtype=torch.float16,
+        device_map=device if device != "cpu" else None)
+    model.eval()
     probe_dir = Path(probe_dir) if probe_dir else (
         REPO_ROOT / "data" / "probe_checkpoints" / model_name.split("/")[-1].lower())
     probes = ProbeSet(probe_dir)
