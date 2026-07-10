@@ -19,7 +19,7 @@ answers change.
 
 A community rebuild of the interface from
 ["Designing a Dashboard for Transparency and Control of Conversational AI"](https://arxiv.org/abs/2406.07882)
-(Chen et al.), running Llama-3.2-3B-Instruct with probes retrained on the
+(Chen et al.), running Qwen2.5-7B-Instruct with probes retrained on the
 paper's published datasets. Source:
 [catmcgee/TalkTuner](https://github.com/catmcgee/TalkTuner).
 

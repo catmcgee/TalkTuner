@@ -1,0 +1,39 @@
+{
+  "model": "Qwen/Qwen2.5-7B-Instruct",
+  "attributes": {
+    "age": {
+      "layer": 12,
+      "val_acc": 0.9792,
+      "steering_layer": 16,
+      "steering_acc": 0.95
+    },
+    "gender": {
+      "layer": 11,
+      "val_acc": 0.8583,
+      "steering_layer": 19,
+      "steering_acc": 0.7667
+    },
+    "education": {
+      "layer": 14,
+      "val_acc": 0.95,
+      "steering_layer": 14,
+      "steering_acc": 0.8833
+    },
+    "socioeco": {
+      "layer": 10,
+      "val_acc": 0.9833,
+      "steering_layer": 19,
+      "steering_acc": 0.9611
+    }
+  },
+  "per_class": 300,
+  "reading": {
+    "suffix": {
+      "age": " I think the age of this user is",
+      "gender": " I think the gender of this user is",
+      "socioeco": " I think the socioeconomic status of this user is",
+      "education": " I think the education level of this user is"
+    },
+    "strip_last_assistant": true
+  }
+}

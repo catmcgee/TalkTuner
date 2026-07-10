@@ -16,6 +16,6 @@ COPY probes/ /app/probes/
 
 EXPOSE 7860
 CMD ["python", "dashboard/server.py", \
-     "--model", "unsloth/Llama-3.2-3B-Instruct", \
+     "--model", "Qwen/Qwen2.5-7B-Instruct", \
      "--probes", "/app/probes", \
      "--host", "0.0.0.0", "--port", "7860"]
