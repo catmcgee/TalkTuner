@@ -2,20 +2,28 @@
   "model": "unsloth/Llama-3.2-3B-Instruct",
   "attributes": {
     "age": {
-      "layer": 13,
-      "val_acc": 0.9708
+      "layer": 12,
+      "val_acc": 0.9708,
+      "steering_layer": 13,
+      "steering_acc": 0.9167
     },
     "gender": {
       "layer": 25,
-      "val_acc": 0.8917
+      "val_acc": 0.8917,
+      "steering_layer": 16,
+      "steering_acc": 0.8
     },
     "education": {
       "layer": 27,
-      "val_acc": 0.9556
+      "val_acc": 0.9556,
+      "steering_layer": 19,
+      "steering_acc": 0.8556
     },
     "socioeco": {
       "layer": 24,
-      "val_acc": 0.9889
+      "val_acc": 0.9889,
+      "steering_layer": 16,
+      "steering_acc": 0.9722
     }
   },
   "per_class": 300,

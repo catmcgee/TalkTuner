@@ -83,8 +83,15 @@ def main():
         results = {}
         for kind, X in [("reading", np.stack(feats)),
                         ("controlling", np.stack(bare_feats))]:
+            # Controlling probes must sit mid-network to steer well (the
+            # paper edits at 47-70% depth); late-layer directions score fine
+            # on validation but only nudge next-token logits. Reading probes
+            # may use any layer.
+            n = X.shape[1]
+            layer_range = (range(int(n * 0.4), int(n * 0.72))
+                           if kind == "controlling" else range(n))
             best = None
-            for layer in range(X.shape[1]):
+            for layer in layer_range:
                 clf = LogisticRegression(max_iter=2000, C=0.1)
                 clf.fit(X[idx_train, layer], y[idx_train])
                 acc = clf.score(X[idx_val, layer], y[idx_val])
