@@ -6,6 +6,10 @@ socioeconomic status), and lets you pin those beliefs to steer the model. The
 original React/Flask app was never open-sourced; this directory is a
 self-contained rebuild of it on top of the repo's probing method.
 
+A hosted version runs at [talktuner.mcgee.cat](https://talktuner.mcgee.cat)
+(Qwen2.5-7B-Instruct on a Hugging Face GPU Space — see [`deploy/`](../deploy/)).
+The instructions below run it locally with a smaller model.
+
 Because the paper's bundled probe checkpoints only work with
 Llama-2-13b-chat's activations, this dashboard trains its own probes for a
 smaller model (default: Llama-3.2-3B-Instruct, ~6.5 GB, runs well on Apple
